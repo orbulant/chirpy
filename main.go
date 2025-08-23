@@ -1,13 +1,20 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
 	"sync/atomic"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	"github.com/orbulant/chirpy/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	dbq            *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -18,42 +25,52 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 
 func main() {
-	mux := http.NewServeMux()
+	err := godotenv.Load() // Load environment variables from .env file
 
-	indexFile := http.FileServer(http.Dir("."))
-	apiCfg := apiConfig{}
+	if err != nil {
+		fmt.Println("Error loading .env file:", err)
+		return
+	}
+
+	dbURL := os.Getenv("DB_URL")
+
+	db, err := sql.Open("postgres", dbURL)
+
+	if err != nil {
+		fmt.Println("Error connecting to the database:", err)
+		return
+	}
+
+	dbQueries := database.New(db)
+
+	apiCfg := apiConfig{dbq: dbQueries}
+
+	mux := http.NewServeMux()
 
 	handler := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
 
-	mux.Handle("/", indexFile)
-	mux.Handle("/app", apiCfg.middlewareMetricsInc(handler))
+	mux.Handle("/app/", apiCfg.middlewareMetricsInc(handler))
+
 	mux.Handle("/app/assets", http.StripPrefix("/app/assets", http.FileServer(http.Dir("./assets"))))
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		// The line below is not needed as it automatically does it on first .Write
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.WriteHeader(http.StatusOK)
-		buf := []byte{}
-		buf = fmt.Appendf(buf, "Hits: %d", apiCfg.fileserverHits.Load())
-		w.Write(buf)
-	})
-	mux.HandleFunc("/reset", func(w http.ResponseWriter, r *http.Request) {
-		apiCfg.fileserverHits.Store(0)
-	})
+
+	mux.HandleFunc("GET /api/healthz", handleHealthz)
+
+	mux.HandleFunc("GET /admin/metrics", handleMetrics(&apiCfg))
+
+	mux.HandleFunc("POST /admin/reset", handleReset(&apiCfg))
+
+	mux.HandleFunc("POST /api/validate_chirp", handleValidateBodyLength)
+
+	mux.HandleFunc("POST /api/users", apiCfg.handleCreateUser)
 
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: mux,
 	}
 
-	fmt.Println("Server started on port 8080")
+	fmt.Println("Server started on port 8080 baby!!!!!!")
 
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 
 	if err != nil {
 		fmt.Println("Error starting server:", err)

@@ -48,16 +48,12 @@ func (apiCfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request
 	}})
 }
 
-func handleDeleteAllUsers(apiCfg *apiConfig) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		_, err := apiCfg.dbq.DeleteAllUsers(ctx)
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to delete users", err)
-			return
-		}
-
-		respondWithJSON(w, http.StatusOK, map[string]string{"message": "All users deleted"})
+func (apiCfg *apiConfig) handleDeleteAllUsers(w http.ResponseWriter, r *http.Request) {
+	_, err := apiCfg.dbq.DeleteAllUsers(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete users", err)
+		return
 	}
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "All users deleted"})
 }

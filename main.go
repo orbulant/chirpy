@@ -53,13 +53,13 @@ func main() {
 
 	mux.Handle("/app/assets", http.StripPrefix("/app/assets", http.FileServer(http.Dir("./assets"))))
 
-	mux.HandleFunc("GET /api/healthz", handleHealthz)
+	mux.HandleFunc("GET /api/healthz", apiCfg.handleHealthz)
 
-	mux.HandleFunc("GET /admin/metrics", handleMetrics(&apiCfg))
+	mux.HandleFunc("GET /admin/metrics", apiCfg.handleMetrics)
 
-	mux.HandleFunc("POST /admin/reset", handleReset(&apiCfg))
+	mux.HandleFunc("POST /admin/reset", apiCfg.handleReset)
 
-	mux.HandleFunc("POST /api/validate_chirp", handleValidateBodyLength)
+	mux.HandleFunc("POST /api/chirps", apiCfg.handleCreateChirp)
 
 	mux.HandleFunc("POST /api/users", apiCfg.handleCreateUser)
 

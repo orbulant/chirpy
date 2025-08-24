@@ -16,6 +16,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbq            *database.Queries
 	jwtSecret      string
+	polkaKey       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -46,7 +47,9 @@ func main() {
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 
-	apiCfg := apiConfig{dbq: dbQueries, jwtSecret: jwtSecret}
+	polkaKey := os.Getenv("POLKA_KEY")
+
+	apiCfg := apiConfig{dbq: dbQueries, jwtSecret: jwtSecret, polkaKey: polkaKey}
 
 	mux := http.NewServeMux()
 
@@ -66,11 +69,15 @@ func main() {
 
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handleGetChirpByID)
 
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handleDeleteChirpByID)
+
 	mux.HandleFunc("POST /api/chirps", apiCfg.handleCreateChirp)
 
 	mux.HandleFunc("POST /api/users", apiCfg.handleCreateUser)
 
 	mux.HandleFunc("PUT /api/users", apiCfg.handleUpdateUser)
+
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handleUgradeUserToChirpyRed)
 
 	mux.HandleFunc("POST /api/login", apiCfg.handleLogin)
 

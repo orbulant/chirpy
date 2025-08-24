@@ -11,10 +11,11 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID          uuid.UUID `json:"id"`
+	Email       string    `json:"email"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 type createUserReqBody struct {
@@ -23,7 +24,6 @@ type createUserReqBody struct {
 }
 
 func (apiCfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
-
 	type response struct {
 		User
 	}
@@ -121,4 +121,47 @@ func (apiCfg *apiConfig) handleDeleteAllUsers(w http.ResponseWriter, r *http.Req
 	}
 
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "All users deleted"})
+}
+
+type upgradeUserReqBody struct {
+	Event string `json:"event"`
+	Data  struct {
+		UserID uuid.UUID `json:"user_id"`
+	}
+}
+
+func (apiCfg *apiConfig) handleUgradeUserToChirpyRed(w http.ResponseWriter, r *http.Request) {
+	// Check the API key
+	apiKey, err := auth.GetAPIKey(r)
+
+	if err != nil || apiKey != apiCfg.polkaKey {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized", err)
+		return
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := upgradeUserReqBody{}
+
+	err = decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	_, err = apiCfg.dbq.SetIsUserChirpyRedByID(r.Context(), database.SetIsUserChirpyRedByIDParams{
+		ID:          params.Data.UserID,
+		IsChirpyRed: true,
+	})
+
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Couldn't upgrade user", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

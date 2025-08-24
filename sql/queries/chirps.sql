@@ -14,5 +14,8 @@ SELECT * FROM chirps WHERE id = $1;
 -- name: DeleteAllChirps :execrows
 DELETE FROM chirps;
 
+-- name: DeleteChirpByID :one
+DELETE FROM chirps WHERE id = $1 RETURNING *;
+
 
 

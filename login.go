@@ -19,6 +19,7 @@ type loginResBody struct {
 	Email          string `json:"email"`
 	CreatedAt      string `json:"created_at"`
 	UpdatedAt      string `json:"updated_at"`
+	IsChirpyRed    bool   `json:"is_chirpy_red"`
 	Token          string `json:"token"`
 	RefreshToken   string `json:"refresh_token"`
 	ExpirationTime int64  `json:"exp"`
@@ -80,6 +81,7 @@ func (apiCfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Email:          user.Email,
 		CreatedAt:      user.CreatedAt.String(),
 		UpdatedAt:      user.UpdatedAt.String(),
+		IsChirpyRed:    user.IsChirpyRed,
 		Token:          token,
 		RefreshToken:   refreshToken.Token,
 		ExpirationTime: time.Now().Add(expiry).Unix(),

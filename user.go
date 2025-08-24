@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orbulant/chirpy/internal/auth"
+	"github.com/orbulant/chirpy/internal/database"
 )
 
 type User struct {
@@ -15,18 +17,19 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func (apiCfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+type createUserReqBody struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
 
-	type requestBody struct {
-		Email string `json:"email"`
-	}
+func (apiCfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	type response struct {
 		User
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	params := requestBody{}
+	params := createUserReqBody{}
 
 	err := decoder.Decode(&params)
 	if err != nil {
@@ -34,7 +37,17 @@ func (apiCfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user, err := apiCfg.dbq.CreateUser(r.Context(), params.Email)
+	hashedPassword, err := auth.HashPassword(params.Password)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't hash password", err)
+		return
+	}
+
+	user, err := apiCfg.dbq.CreateUser(r.Context(), database.CreateUserParams{
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create user", err)
 		return

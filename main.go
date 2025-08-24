@@ -15,6 +15,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbq            *database.Queries
+	jwtSecret      string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -43,7 +44,9 @@ func main() {
 
 	dbQueries := database.New(db)
 
-	apiCfg := apiConfig{dbq: dbQueries}
+	jwtSecret := os.Getenv("JWT_SECRET")
+
+	apiCfg := apiConfig{dbq: dbQueries, jwtSecret: jwtSecret}
 
 	mux := http.NewServeMux()
 
@@ -59,9 +62,15 @@ func main() {
 
 	mux.HandleFunc("POST /admin/reset", apiCfg.handleReset)
 
+	mux.HandleFunc("GET /api/chirps", apiCfg.handleGetAllChirps)
+
+	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handleGetChirpByID)
+
 	mux.HandleFunc("POST /api/chirps", apiCfg.handleCreateChirp)
 
 	mux.HandleFunc("POST /api/users", apiCfg.handleCreateUser)
+
+	mux.HandleFunc("POST /api/login", apiCfg.handleLogin)
 
 	server := http.Server{
 		Addr:    ":8080",

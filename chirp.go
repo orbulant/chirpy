@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orbulant/chirpy/internal/auth"
 	"github.com/orbulant/chirpy/internal/database"
 )
 
@@ -66,9 +67,23 @@ func replaceProfanity(badWords []string, text string) string {
 }
 
 func (apiCfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) {
+	// Get JWT from Authorization header
+	tokenString, err := auth.GetBearerTokenFromRequest(r)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Missing or invalid auth token", err)
+		return
+	}
+
+	// Validate JWT and extract user ID
+	userID, err := auth.ValidateJWT(tokenString, apiCfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid auth token", err)
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	params := chirpReqBody{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
@@ -80,7 +95,7 @@ func (apiCfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Reques
 
 		chirp, err := apiCfg.dbq.CreateChirp(r.Context(), database.CreateChirpParams{
 			Body:   replaceProfanity(badWords, params.Body),
-			UserID: params.UserID,
+			UserID: uuid.NullUUID{UUID: userID, Valid: true},
 		})
 
 		if err != nil {
@@ -96,4 +111,53 @@ func (apiCfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Reques
 			UpdatedAt: chirp.UpdatedAt,
 		})
 	}
+}
+
+func (apiCfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := apiCfg.dbq.GetAllChirps(r.Context())
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't fetch chirps", err)
+		return
+	}
+
+	var resp []Chirp
+
+	for _, chirp := range chirps {
+		resp = append(resp, Chirp{
+			ID:        chirp.ID,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+		})
+	}
+
+	respondWithJSON(w, http.StatusOK, resp)
+}
+
+func (apiCfg *apiConfig) handleGetChirpByID(w http.ResponseWriter, r *http.Request) {
+	chirpId := r.PathValue("chirpID")
+
+	cid, err := uuid.Parse(chirpId)
+
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid chirp ID", err)
+		return
+	}
+
+	chirp, err := apiCfg.dbq.GetChirpByID(r.Context(), cid)
+
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Couldn't fetch chirp", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, Chirp{
+		ID:        chirp.ID,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+	})
 }

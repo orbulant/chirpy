@@ -35,6 +35,11 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 
+	// Check if token is expired
+	if claims.ExpiresAt != nil && claims.ExpiresAt.Time.Before(time.Now().UTC()) {
+		return uuid.Nil, errors.New("token is expired")
+	}
+
 	userId := claims.Subject
 	return uuid.Parse(userId)
 }
